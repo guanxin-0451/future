@@ -4,7 +4,7 @@
 - redis
 - 消息队列 kafka
 
-###2. 操作系统&linux网络编程
+###2. [操作系统&linux网络编程](https://github.com/guanxin-0451/future/blob/main/stereotypedWriting/操作系统&linux网络编程.md)
 - c10k问题 [c10k](http://www.kegel.com/c10k.html)
 - TCP/IP 的三次握手，四次挥手，两端的状态变化，Socket 编程的那几个系统调用，还有 select、poll、epoll 这些异步 IO 多路复用。
 ###3. 计算机网络
@@ -20,7 +20,7 @@
 - select
 - Effective Go
 
-###5. 微服务&分布式系统
+###5. [微服务&分布式系统](https://github.com/guanxin-0451/future/blob/main/stereotypedWriting/分布式.md)
 ####分布式服务架构
 - CAP 理论
 - grpc
