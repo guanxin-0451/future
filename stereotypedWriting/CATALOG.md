@@ -19,7 +19,7 @@
 - 并发
 - select
 - Effective Go
-
+- [gmp](https://www.cnblogs.com/sunsky303/p/9705727.html)
 ###5. [微服务&分布式系统](https://github.com/guanxin-0451/future/blob/main/stereotypedWriting/分布式.md)
 ####分布式服务架构
 - CAP 理论
@@ -55,3 +55,10 @@
 ###6.设计模式
 - go的设计模式应用
 - 编程范式
+
+### 7. 算法
+- 快排
+- 堆
+- LRU
+- 八皇后
+- KMP
