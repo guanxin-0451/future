@@ -1,6 +1,6 @@
 ##八股文
 ###1. 存储
-- mysql&tidb
+- [mysql&tidb](https://github.com/guanxin-0451/future/blob/main/stereotypedWriting/%E5%AD%98%E5%82%A8.md)
 - redis
 - 消息队列 kafka
 
