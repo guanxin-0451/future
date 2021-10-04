@@ -1,5 +1,6 @@
 package leetcode
 
+// 维护截止当前的最小价格，计算当前的价格和最小价格的价格差
 func maxProfit(prices []int) int {
 	if len(prices) <= 1 {
 		return 0
