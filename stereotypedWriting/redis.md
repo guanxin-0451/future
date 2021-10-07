@@ -1,4 +1,5 @@
 ## Redis
+[TOC]
 
 redis和mem cache?  
 一致性哈希？
@@ -179,7 +180,56 @@ redis和mem cache?
       如果内存分配器设计合理，可以尽可能的减少内存碎片的产生。后面将要说到的jemalloc便在控制内存碎片方面做的很好。
    ```
 ### 集群
+  - 主从复制
+    - 特点：
+      - 数据冗余
+      - 故障恢复 可以切从节点为主节点
+      - 负载均衡： 读写分离 写主读从
+      - 高可用:
+    - PSYNC
+      - 完整重同步： 创建并发送rdb文件&发送缓冲区的写命令
+      - 命令传播： 写命令持续发送给从服务器
+      - 部分重同步： 断线后重新同步
+      - 根据操作的偏移量，来确认是否断开链接，丢失部分操作，向主节点发送psync命令同步，检查偏移量。
+    
+  - 哨兵
+    - sentinel是个特殊的redis服务，不支持redis的基本功能，支持复制，发布订阅等。
+    - sentinel 进程
+      - 监控集群中master主服务器工作的状态  
+      - 提醒
+      - 自动故障救援
+      - 通过命令链接发送ping 给主，从， 其他sentinel发送
+      - 通过订阅 订阅主服务器的__sentinel__: hello频道。
+    - 主观下线和客观下线
+      - 主观下线：某个sentinel发现了master实例长时间无效回复。
+      - 客观下线： sentinel开始询问其他的sentinel，看看是否有超过x（通常是半数）认为master下线。
+    - 选举领头sentinel：
+      - 给其他sentinel发送做主的命令，超半数同意即通过。
+      - raft：[raft选举](http://blog.itpub.net/31556438/viewspace-2637112/)
+        
+    - 领头 sentinel 进行选主服务器：
+      - 根据断连时间筛掉一批
+      - 根据复制偏移量选一个最大的（有最新的数据）
+    - 将旧的从切换主到新的主
+    - 如果旧的主上线，作为从服务器
+    
+  - cluster
+    - 解决问题：  
+      单写服务 可接纳吞吐量差，需要多写服务。  
+      大量数据 bgsave rdb文件大，从节点接收慢，延迟高
+    - 主要组成
+      - 数据分片  
+        使用hash槽位 16384个槽位2^14
+      - 主从复制模型
+      - 故障转移
+    - 结构：多组 主从 
+    - 支持槽位迁移
+    - 
+  - codis
   
+  
+### 发布订阅
+
 ### 常见问题
 #### 一致性哈希[一致性哈希](https://www.zsythink.net/archives/1182)
     - 解决问题：hash扩容 缩容 扩容/缩容时 所有的缓存的位置都可能发生改变
@@ -324,6 +374,25 @@ redis和mem cache?
      redis集群可以采用一主多从，一主一从。memcache集群只能采用一主多从
      redis支持数据恢复。memcache不支持
      
+#### redis cluster为什么选择2^14个槽位？
+  ```
+The reason is:
+
+Normal heartbeat packets carry the full configuration of a node, 
+that can be replaced in an idempotent way with the old in order to update an old config. 
+This means they contain the slots configuration for a node, in raw form, 
+that uses 2k of space with16k slots, but would use a prohibitive 8k of space using 65k slots.
+At the same time it is unlikely that Redis Cluster would scale to more than 1000 mater nodes because of other design tradeoffs.
+So 16k was in the right range to ensure enough slots per master with a max of 1000 maters,
+ but a small enough number to propagate the slot configuration as a raw bitmap easily. 
+Note that in small clusters the bitmap would be hard to compress because when N is small the bitmap would have slots/N 
+bits set that is a large percentage of bits set.
+  ```
+
+#### 过期
+过期时间 移除过期时间 PERSIST
+expires字典 维护所有键的过期时间 。  键是指针
+删除策略：定时，定期，惰性
 
 ### 资料&参考
   [持久化](https://www.cnblogs.com/javazhiyin/p/11425060.html)
