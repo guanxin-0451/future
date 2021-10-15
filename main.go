@@ -17,7 +17,6 @@ package main
 
 import (
 	"fmt"
-	"future/leetcode"
 )
 
 func f1(s []int) {
@@ -30,29 +29,62 @@ type A struct {
 	c []int
 }
 
-func main() {
-	m := make(map[int]int)
-	for i := 1; i <= 10; i++ {
-		m[i] = i
-	}
-	//var s chan int
+//
+//func main() {
+//	m := make(map[int]int)
+//	for i := 1; i <= 10; i++ {
+//		m[i] = i
+//	}
+//	//var s chan int
+//
+//	//select {
+//	//case <- s:
+//	//
+//	//}
+//	//for k, v := range(m){
+//	//	fmt.Printf("%d  %d\n", k, v)
+//	//	delete(m, k+1)
+//	//}
+//	//
+//	//fmt.Printf("\n%v\n", m)
+//	//
+//	ans := leetcode.SearchMatrix([][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, 9)
+//	fmt.Printf("%v", ans)
+//	//fmt.Printf("\n%v %v\n\n", a==b, &a==&b)
+//}
 
-	//select {
-	//case <- s:
-	//
-	//}
-	//for k, v := range(m){
-	//	fmt.Printf("%d  %d\n", k, v)
-	//	delete(m, k+1)
-	//}
-	//
-	//fmt.Printf("\n%v\n", m)
-	//
-	ans := leetcode.SearchMatrix([][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, 9)
-	fmt.Printf("%v", ans)
-	//fmt.Printf("\n%v %v\n\n", a==b, &a==&b)
+func getType(i interface{}) int {
+	switch i.(type) {
+	case int:
+		return 1
+	case map[string]interface{}:
+		return 2
+	default:
+		return 0
+	}
+
 }
 
+func convert(param map[string]interface{}) {
+	for key, val := range param {
+		t := getType(val)
+		if t == 1 {
+			param[key] = fmt.Sprintf("%d-", val)
+		} else if t == 2 {
+			res, _ := val.(map[string]interface{})
+			convert(res)
+		}
+	}
+}
+
+//func main(){
+//	data := make(map[string]interface{})
+//	data = map[string]interface{}{"a": 1}
+//	data["b"] = map[string]interface{}{"aa": 2, "bb": 15}
+//
+//	convert(data)
+//	fmt.Println(data)
+//}
 //
 //func main(){
 //
@@ -112,3 +144,47 @@ func main() {
 //
 //	return result
 //}
+
+func BinarySearch2(nums []int, appoint int) bool {
+	if len(nums) == 0 {
+		return false
+	}
+
+	l, r := 0, len(nums)-1
+
+	for l <= r {
+		half := (l + r) / 2
+
+		if nums[half] == appoint {
+			return true
+		}
+
+		if nums[half] > appoint {
+			r = half - 1
+		} else if nums[half] < appoint {
+			l = half + 1
+		}
+
+		fmt.Printf("\n%d %d\n", l, r)
+	}
+
+	return false
+}
+
+func f11() (value int) {
+
+	defer func() {
+		value++
+	}()
+
+	value += 10
+
+	return value
+}
+
+func main() {
+	v := f11()
+	fmt.Printf("\n%v\n", v)
+	//b := BinarySearch2([]int{1,2,3,4,5,6}, 2)
+	//fmt.Printf("\n%v\n", b)
+}

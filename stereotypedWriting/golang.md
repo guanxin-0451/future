@@ -210,6 +210,51 @@
     - [timer](https://pengrl.com/p/62835/)
 
  
+ #### [gmp](https://mp.weixin.qq.com/mp/homepage?__biz=MjM5MDUwNTQwMQ==&hid=1&sn=e47afe02b972f5296e1e3073982cf1b6&scene=1&devicetype=iOS13.7&version=18000e2a&lang=zh_CN&nettype=WIFI&ascene=7&session_us=gh_78aad54fff72&fontScale=100&wx_header=1)
+   - G: goroutine
+     - 结构:   
+       - stack 
+       - m 当前与g 绑定的m
+       - sched goroutine 的运行现场
+       - param wakeup时传入的参数
+       - waitsince g被阻塞后的金丝时间
+       - waitreason 被阻塞的原因
+       - schedlink 链表 指向全剧队列里的下一个g
+       - 
+   - M: 工作线程  
+       记录内核线程使用的栈信息。在执行调度代码时需要使用  
+       使用用户goroutine代码时，用g自己的栈，调度会发生栈的切换
+       当m没有工作的时候，在休眠前，会自旋的找工作
+       - 结构
+         - g0 : *g 栈空间
+         - tls [6]uintptr 实现m与内核线程的绑定
+         - curg 指向当前运行的g
+         - p 当前绑定的p
+         - spinning 当前处于自旋状态，正从其他线程偷工作
+         - bolocked m 阻塞
+   - P: processor  
+       为 M 的执行提供“上下文”，保存 M 执行 G 时的一些资源，
+       例如本地可运行 G 队列，memeory cache 等。  
+       一个 M 只有绑定 P 才能执行 goroutine，当 M 被阻塞时，
+       整个 P 会被传递给其他 M ，或者说整个 P 被接管。
+   - Go scheduler schedt   
+       保存调度器的状态信息、全局的可运行 G 队列等。
+       schedt全局只有一份实体
+       - 启动流程
+         ```从磁盘上读取可执行文件，加载到内存
+            
+            创建进程和主线程
+            
+            为主线程分配栈空间
+            
+            把由用户在命令行输入的参数拷贝到主线程的栈
+            
+            把主线程放入操作系统的运行队列等待被调度
+         ```
+       
+ #### gin 实现
+ #### grpc protobuf
+ 
 
 
 
