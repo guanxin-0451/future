@@ -80,6 +80,8 @@
         2. 串联channel 多channel->
         3. 单方向channel  预定义类型 chan-<  int 只发送int的channel
         4. 带缓存的channel ch = make(chan string, 3)
+        5. 无缓存的channel只有在receiver准备好后send才被执行，也就是说receiver的goroutine 和sender的goroutine 必须成对出现
+        6. 如果无缓存，多余的写入的goroutine会泄漏，所以要使用有缓冲的chan
       - wg sync.WaitGroup  
         控制等待全部完成 wg.add(x) defer wg.Done() wg.Wait()
       - select 多路复用  
@@ -127,7 +129,6 @@
       - slice 的背后数组被重新分配了，因为 append 时可能会超出其容量( cap )。 slice 初始化的地方在编译时是可以知道的，它最开始会在栈上分配。如果切片背后的存储要基于运行时的数据进行扩充，就会在堆上分配。
       - 在 interface 类型上调用方法。 在 interface 类型上调用方法都是动态调度的 —— 方法的真正实现只能在运行时知道。想像一个 io.Reader 类型的变量 r , 调用 r.Read(b) 会使得 r 的值和切片b 的背后存储都逃逸掉，所以会在堆上分配。
 
-      
     - [golang面试题：怎么避免内存逃逸？](https://mp.weixin.qq.com/s/4QAxGEr9KxtZXyfSG8VoCQ) 
     - [golang面试题：简单聊聊内存逃逸？](https://mp.weixin.qq.com/s/4YYR1eYFIFsNOaTxL4Q-eQ) 
     - [给大家丢脸了，用了三年golang，我还是没答对这道内存泄漏题](https://mp.weixin.qq.com/s/T6XXaFFyyOJioD6dqDJpFg)
@@ -147,9 +148,7 @@
       
     - sync.map 的优缺点和使用场景
     - sync.Map的优化点
-  
- 
-    
+
   - 高级特性
     - [golang面试题：能说说uintptr和unsafe.Pointer的区别吗？](https://mp.weixin.qq.com/s/IkOwh9bh36vK6JgN7b3KjA)
     - [golang 面试题：reflect（反射包）如何获取字段 tag？为什么 json 包不能导出私有变量的 tag？](https://mp.weixin.qq.com/s/WK9StkC3Jfy-o1dUqlo7Dg)
@@ -211,6 +210,8 @@
 
  
  #### [gmp](https://mp.weixin.qq.com/mp/homepage?__biz=MjM5MDUwNTQwMQ==&hid=1&sn=e47afe02b972f5296e1e3073982cf1b6&scene=1&devicetype=iOS13.7&version=18000e2a&lang=zh_CN&nettype=WIFI&ascene=7&session_us=gh_78aad54fff72&fontScale=100&wx_header=1)
+   ![GMP调度图](https://cynthia-oss.oss-cn-beijing.aliyuncs.com/1634481001824.png)
+
    - G: goroutine
      - 结构:   
        - stack 
@@ -232,6 +233,11 @@
          - p 当前绑定的p
          - spinning 当前处于自旋状态，正从其他线程偷工作
          - bolocked m 阻塞
+       - 找可运行的goroutine流程:  
+         先从本地队列找，定期会从全局队列找，最后实在没办法，就去别的 P 偷.
+       - M 只有自旋和非自旋两种状态： 
+         自旋的时候，会努力找工作；找不到的时候会进入非自旋状态，之后会休眠，直到有工作需要处理时，被其他工作线程唤醒，又进入自旋状态。
+         
    - P: processor  
        为 M 的执行提供“上下文”，保存 M 执行 G 时的一些资源，
        例如本地可运行 G 队列，memeory cache 等。  
@@ -251,6 +257,38 @@
             
             把主线程放入操作系统的运行队列等待被调度
          ```
+   - Main Goroutine  
+     - 调用newproc 启动过1个goroutine 传入func和func大小
+   
+   - goroutine阻塞时会发生什么[正在执行的goruntine发生阻塞，golang调度策略](https://blog.csdn.net/csdniter/article/details/112175118)
+     - 阻塞在网络IO:  
+       则通过netPoller（epoll实现）轮询，放开m，m去执行其他队列中的g。
+       异步调用完成后，则被移回p的lrq中。
+       ![](https://cynthia-oss.oss-cn-beijing.aliyuncs.com/1634482900127.png)
+     - 同步系统调用阻塞（比如文件I/O） 会导致M阻塞：   
+       G1 将进行同步系统调用以阻塞 M1。
+       ![](https://cynthia-oss.oss-cn-beijing.aliyuncs.com/1634482984559.png)  
+       调度器介入后：识别出 G1 已导致 M1 阻塞，此时，调度器将 M1 与 P 分离，同时也将 G1 带走。然后调度器引入新的 M2 来服务 P。此时，可以从 LRQ 中选择 G2 并在 M2 上进行上下文切换。
+       ![](https://cynthia-oss.oss-cn-beijing.aliyuncs.com/1634482996211.png)
+       阻塞的系统调用完成后：G1 可以移回 LRQ 并再次由 P 执行。如果这种情况再次发生，M1 将被放在旁边以备将来重复使用。
+       ![](https://cynthia-oss.oss-cn-beijing.aliyuncs.com/1634483096306.png)
+     - 如果在 Goroutine 去执行一个 sleep 操作，导致 M 被阻塞了： 
+       Go 程序后台有一个监控线程 sysmon，它监控那些长时间运行的 G 任务然后设置可以强占的标识符，别的 Goroutine 就可以抢先进来执行。  
+       只要下次这个 Goroutine 进行函数调用，那么就会被强占，同时也会保护现场，然后重新放入 P 的本地队列里面等待下次执行。
+   - goroutine生命周期（main）：
+      ![生命周期](https://cynthia-oss.oss-cn-beijing.aliyuncs.com/1634484024274.png)
+
+   - 总结： https://zhuanlan.zhihu.com/p/261590663
+     ![调度示意图](https://cynthia-oss.oss-cn-beijing.aliyuncs.com/1634483925771.png)
+     - 调度过程：
+       1. 创建G 保存在P的本地队列/全剧队列。
+       2. P 唤醒1个M
+       3. P 按照他的队列的G的执行顺序继续执行任务
+       4. M 如果空闲，则找P的本地队列的G，如果没有，则找全局队列，如果还没有，就去别的P偷G。
+       5. M 执行一个调度循环：调用G对象->执行->清理线程->继续寻找Goroutine。
+       6. M 的栈保存在G对象。 M随时可能发生上下文切换。
+       7. 如果G对象还没有被执行，M可以将G重新放到P的调度队列，等待下一次的调度执行。当调度执行时，M可以通过G的vdsoSP, vdsoPC 寄存器进行现场恢复。  
+       8. 清理线程： G的调度是为了实现P/M的绑定，所以线程清理就是释放P上的G，让其他的G能够被调度。
        
  #### gin 实现
  #### grpc protobuf
