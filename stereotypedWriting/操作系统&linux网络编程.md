@@ -149,7 +149,130 @@ FIFO有路径名与之相关联，它以一种特殊设备文件形式存在于�
    顺便再提一句：redis 的瓶颈在网络上 。。。。
 ```
 
+#### 多路复用
+  - 一 基本概念
+    - 用户空间和内核空间
+      ```现在操作系统都是采用虚拟存储器，那么对32位操作系统而言，它的寻址空间（虚拟存储空间）为4G（2的32次方）。操作系统的核心是内核，
+      独立于普通的应用程序，可以访问受保护的内存空间，也有访问底层硬件设备的所有权限。为了保证用户进程不能直接操作内核（kernel），
+      保证内核的安全，操心系统将虚拟空间划分为两部分，一部分为内核空间，一部分为用户空间。针对linux操作系统而言，
+      将最高的1G字节（从虚拟地址0xC0000000到0xFFFFFFFF），供内核使用，称为内核空间，而将较低的3G字节（从虚拟地址0x00000000到0xBFFFFFFF），
+      供各个进程使用，称为用户空间。
+      ```
+    - 进程切换
+      为了控制进程的执行，内核必须有能力挂起正在CPU上运行的进程，并恢复以前挂起的某个进程的执行。
+      这种行为被称为进程切换。因此可以说，任何进程都是在操作系统内核的支持下运行的，是与内核紧密相关的。  
+      切换进程消耗资源  
+      从一个进程的运行转到另一个进程上运行，这个过程中经过下面这些变化：  
+      1. 保存处理机上下文，包括程序计数器和其他寄存器。
+      2. 更新PCB信息。
+      3. 把进程的PCB移入相应的队列，如就绪、在某事件阻塞等队列。
+      4. 选择另一个进程执行，并更新其PCB。
+      5. 更新内存管理的数据结构。
+      6. 恢复处理机上下文。
+    - 进程阻塞
+      正在执行的进程，由于期待的某些事件未发生，如请求系统资源失败、等待某种操作的完成、新数据尚未到达或无新工作做等，
+      则由系统自动执行阻塞原语(Block)，使自己由运行状态变为阻塞状态。可见，进程的阻塞是进程自身的一种主动行为，
+      也因此只有处于运行态的进程（获得CPU），才可能将其转为阻塞状态。当进程进入阻塞状态，是不占用CPU资源的。
+    - 文件描述符
+      指向内核为每一个进程所维护的该进程打开文件的记录表。当程序打开一个现有文件或者创建一个新文件时，内核向进程返回一个文件描述符。
+    - 缓存I/O
+      缓存 I/O 又被称作标准 I/O，大多数文件系统的默认 I/O 操作都是缓存 I/O。在 Linux 的缓存 I/O 机制中，
+      操作系统会将 I/O 的数据缓存在文件系统的页缓存（ page cache ）中，也就是说，数据会先被拷贝到操作系统内核的缓冲区中，
+      然后才会从操作系统内核的缓冲区拷贝到应用程序的地址空间。  
+      Sendfile 提供了一种减少用户空间转到内核空间的操作
+  - 二 IO 模式  
+    当一个read操作发生时，它会经历两个阶段：  
+    1. 等待数据准备 (Waiting for the data to be ready)
+    2. 将数据从内核拷贝到进程中 (Copying the data from the kernel to the process)  
+    正式因为这两个阶段，linux系统产生了下面五种网络模式的方案。  
+    - 阻塞 I/O（blocking IO）  
+      获取数据的时候 一直阻塞 直到接收到
+    - 非阻塞 I/O（nonblocking IO）
+      获取数据时 如果数据还没有完全在内核准备好，会返回error，可以不停重试
+    - I/O 多路复用（ IO multiplexing）
+      当用户进程调用了select，那么整个进程会被block，而同时，kernel会“监视”所有select负责的socket，当任何一个socket中的数据准备好了
+      ，select就会返回。这个时候用户进程再调用read操作，将数据从kernel拷贝到用户进程。
+    - 信号驱动 I/O（ signal driven IO）
+    - 异步 I/O（asynchronous IO）
+      用户进程发起read操作之后，立刻就可以开始去做其它的事。而另一方面，从kernel的角度，当它受到一个asynchronous read之后，
+      首先它会立刻返回，所以不会对用户进程产生任何block。然后，kernel会等待数据准备完成，然后将数据拷贝到用户内存，
+      当这一切都完成之后，kernel会给用户进程发送一个signal，告诉它read操作完成了。
+      
+  - 三 IO多路复用  
+    多路复用+非阻塞IO有一点：非阻塞只是在读写数据的阶段是非阻塞的，在调用select，poll，epoll的监听阶段还是阻塞的  
+    - select
+      ```
+      int select(int maxfd, fd_set *readset, fd_set *writeset, fd_set *exceptset, const struct timeval *timeout);
+      ```
+      - Maxfd: 文件描述符的范围，比待检的最大文件描述符大1
+      - Readfds：被读监控的文件描述符集
+      - Writefds：被写监控的文件描述符集
+      - Exceptfds：被异常监控的文件描述符集
+      - timeval: 定时器  
+        - 如果是nil，表示如果没有i/o select一直等待
+        - 如果是非0的值 表示等待固定的一段时间后 从select阻塞调用中返回。
+        - 将 tv_sec 和 tv_usec 都设置成 0 表示不等待，检测完立刻返回。
+       
+      宏:操作向量描述符(a[maxfd-1], ..., a[1], a[0])
+        1. void FD_ZERO(fd_set *fdset); 将所有元素设置成0
+        2. void FD_SET(int fd, fd_set *fdset); 将a[fd] 设置成1
+        3. void FD_CLR(int fd, fd_set *fdset); a[fd] 设置成0
+        4. int FD_ISSET(int fd, fd_set *fdset); 判断a[fd]是0还是1  
+      
+      总结: select 阻塞的获得一个含有若干个待读/写的块的向量，标记了哪个块可读写，然后用户程序去check每个块是否有数据。  
+           有文件描述符的个数限制：1024  
+           **每次阻塞 读完数据之后，需要重新设置待写入的描述符集合 性能差**
+           等待队列和revents在一起
+    - poll
+        ```
+        int poll(struct pollfd *fds, unsigned long nfds, int timeout);
+        ```
+        - pollfd 数组 
+          ```struct pollfd{
+                int fd; 描述符
+                short events; 待检测的事件类型 ，通过二进制掩码来表示多个不同地事件
+                short revents; 每次检测后不会修改传入值， 结果保留在revents
+          }
+          ```
+        - nfds 数组fds的大小 向poll申请的事件检测的个数
+        - timeout 如果是一个 <0 的数，表示在有事件发生之前永远等待;如果是 0，表示不阻塞进程，立即 返回;如果是一个 >0 的数，表示 poll 调用方等待指定的毫秒数后返回。
+        - 和 select的区别:
+          - 区别1：select使用的是定长数组，而poll是通过用户自定义数组长度的形式（pollfd[]）
+          - 区别2：select只支持最大fd < 1024，如果单个进程的文件句柄数超过1024，select就不能用了。poll在接口上无限制，
+            考虑到每次都要拷贝到内核，一般文件句柄多的情况下建议用epoll。
+          - 区别3：select由于使用的是位运算，所以select需要分别设置read/write/error fds的掩码。
+          而poll是通过设置数据结构中fd和event参数来实现read/write，比如读为POLLIN，写为POLLOUT，出错为POLLERR：
+          - 区别4：select中fd_set是被内核和用户共同修改的，所以要么每次FD_CLR再FD_SET，
+          要么备份一份memcpy进去。而poll中用户修改的是events，系统修改的是revents。所以参考muduo的代码，
+          都不需要自己去清除revents，从而使得代码更加简洁。
+          - 区别5：select的timeout使用的是struct timeval *timeout，poll的timeout单位是int。
+          - 区别6：select使用的是绝对时间，poll使用的是相对时间。
+          - 区别7：select的精度是微秒（timeval的分度），poll的精度是毫秒。   
+          - 区别8：select的timeout为NULL时表示无限等待，否则是指定的超时目标时间；poll的timeout为-1表示无限等待。所以有用select来实现usleep的。  
+          - 区别9：理论上poll可以监听更多的事件
+    - epoll[原理](https://blog.csdn.net/armlinuxww/article/details/92803381)
+      - 结构
+        - int epoll_create(int size): 创建epoll实例，用来调用epoll_ctl和epoll_wait  
+          内核可以动态分配需要的内核数据结构
+        - int epoll_ctl(int epfd, int op, int fd, struct epoll_evenet *event): 增加或删除监控的事件。
+        - int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout): 调用者进程被挂起， 等待内核I/O事件的分发  
+      - 数据结构:   
+        包含了 Lock、MTX、WQ(等待队列)与 Rdlist 等成员，其中 Rdlist 和 RBR 是我们所关心的。
+        - 就绪列表： rdList 采用双向链表，可以快速插入删除。
+        - 索引结构： 红黑树（RBR）
+      - 对比select  
+        Select 低效的原因：
+          1. 是将“维护等待队列”和“阻塞进程”两个步骤合二为一。
+          2. 只能1个个遍历fds
+        ![epoll对比select](https://cynthia-oss.oss-cn-beijing.aliyuncs.com/1634455305983.png)
+      - 为什么快
+        1. 维护队列和阻塞拆开 epoll_ctl 负责维护等待队列 epoll_wait负责阻塞 避免了每次都要从用户态把数据传给内核。
+        2. 内核维护了就绪队列 有红黑树索引 
+      - 三者对比
+        ![epoll select poll对比](https://cynthia-oss.oss-cn-beijing.aliyuncs.com/1634457114578.png)
 
+          
+        
 ## 计算机网络
   ### 基础
   ####http
