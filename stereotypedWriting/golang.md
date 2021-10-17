@@ -160,31 +160,11 @@
       p调度M运行G
     - [动图图解，GMP里为什么要有P](https://mp.weixin.qq.com/s?__biz=MzAwMDAxNjU4Mg==&mid=2247484769&idx=1&sn=4d813bdf0977b3415db8faf4645ee216)
     - 协程之间是怎么调度的
-    - gc
-      - 常见的方式
-        - 引用计数
-        - 标记清除
-      - stw
-        找可清除的指针/对象的时候，stw（stop the word） 找指针是个很短的瞬间。
-      - 三色标记
-        - 第一阶段 gc开始 stop the world  
-          初始状态所有内存是白色，进入标记队列是灰色
-          1. stop the world
-          2. 每个processor启动一个mark worker goroutine用于标记（用于第二阶段工作）
-          3. 启动gc write barrier（记录一下后续在进行marking时被修改的指针）
-          4. 找到所有roots（stack, heap, global vars）并加入标记队列
-          5. start the world，进入第二阶段
-        - 第二阶段 marking，start the world
-          ![](https://cynthia-oss.oss-cn-beijing.aliyuncs.com/1634022937392.png)
-
-        - GC触发条件内存大小阈值， 内存达到上次gc后的2倍达到定时时间 ，2m interval阈值是由一个gc percent的变量控制的,当新分配的内存占已在使用中的内存的比例超过gcprecent时就会触发。比如一次回收完毕后，内存的使用量为5M，那么下次回收的时机则是内存分配达到10M的时候。也就是说，并不是内存分配越多，垃圾回收频率越高。 如果一直达不到内存大小的阈值呢？这个时候GC就会被定时时间触发，比如一直达不到10M，那就定时（默认2min触发一次）触发一次GC保证资源的回收。
-          链接：https://zhuanlan.zhihu.com/p/92210761
-
-    - gc的stw是怎么回事
     - 利用golang特性，设计一个QPS为500的服务器
     - 为什么gc会让程序变慢
     - 开多个线程和开多个协程会有什么区别
-    - 两个interface{} 能不能比较
+    - 两个interface{} 能不能比较  
+      能： 动态类型和值都一样
     - 必须要手动对齐内存的情况
     - [go栈扩容和栈缩容，连续栈的缺点](https://segmentfault.com/a/1190000019570427)
     - golang怎么做代码优化
@@ -289,13 +269,34 @@
        6. M 的栈保存在G对象。 M随时可能发生上下文切换。
        7. 如果G对象还没有被执行，M可以将G重新放到P的调度队列，等待下一次的调度执行。当调度执行时，M可以通过G的vdsoSP, vdsoPC 寄存器进行现场恢复。  
        8. 清理线程： G的调度是为了实现P/M的绑定，所以线程清理就是释放P上的G，让其他的G能够被调度。
-       
+ 
+ #### GC
+- [gc](https://segmentfault.com/a/1190000020086769)
+   - 常见的方式
+     - 引用计数
+     - 标记清除
+   - stw
+     找可清除的指针/对象的时候，stw（stop the word） 找指针是个很短的瞬间。
+   - 三色标记
+     - 第一阶段 gc开始 stop the world  
+       初始状态所有内存是白色，进入标记队列是灰色
+       1. stop the world
+       2. 每个processor启动一个mark worker goroutine用于标记（用于第二阶段工作）
+       3. 启动gc write barrier（记录一下后续在进行marking时被修改的指针）
+       4. 找到所有roots（stack, heap, global vars）并加入标记队列
+       5. start the world，进入第二阶段
+     - 第二阶段 marking，start the world
+       ![](https://cynthia-oss.oss-cn-beijing.aliyuncs.com/1634022937392.png)
+
+     - GC触发条件内存大小阈值， 内存达到上次gc后的2倍达到定时时间 ，2m interval阈值是由一个gc percent的变量控制的,当新分配的内存占已在使用中的内存的比例超过gcprecent时就会触发。比如一次回收完毕后，内存的使用量为5M，那么下次回收的时机则是内存分配达到10M的时候。也就是说，并不是内存分配越多，垃圾回收频率越高。 如果一直达不到内存大小的阈值呢？这个时候GC就会被定时时间触发，比如一直达不到10M，那就定时（默认2min触发一次）触发一次GC保证资源的回收。
+       链接：https://zhuanlan.zhihu.com/p/92210761
+     - 写屏障： 会标记原值。
+     ![完整的gc流程](https://cynthia-oss.oss-cn-beijing.aliyuncs.com/1634486274555.png)
+
  #### gin 实现
  #### grpc protobuf
  
-
-
-
+ 
 
 ### 资料
 [切片](https://blog.csdn.net/weixin_42266173/article/details/81749949)
