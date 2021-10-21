@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+var directions = [][]int{{0, 1}, {1, 0}, {0, -1}, {-1, 0}}
+
 var chs chan int = make(chan int, 2)
 var chs2 chan int = make(chan int, 2)
 
@@ -41,6 +43,26 @@ func read() {
 
 }
 
+func exchange(nums []int) []int {
+	i, j := 0, 0
+	for j < len(nums) {
+		if nums[j]%2 == 0 {
+			j++
+		} else {
+			swap(&nums, i, j)
+			i++
+		}
+	}
+
+	return nums
+}
+
+func swap(nums *[]int, i, j int) {
+	n := *nums
+	tmp := n[j]
+	n[i] = n[j]
+	n[j] = tmp
+}
 func main() {
 	go write()
 	go write2()
