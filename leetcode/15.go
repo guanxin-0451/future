@@ -42,6 +42,7 @@ func threeSum1(nums []int) [][]int {
 func threeSum(nums []int) [][]int {
 	n := len(nums)
 	sort.Ints(nums)
+	sort.Search()
 	ans := make([][]int, 0)
 
 	for first := 0; first < n-2; first++ {
@@ -71,5 +72,39 @@ func threeSum(nums []int) [][]int {
 			}
 		}
 	}
+	return ans
+}
+
+
+func threeSum(nums []int) [][]int {
+	n := len(nums)
+	sort.Ints(nums)
+	ans := make([][]int, 0)
+	// fmt.Printf("%v\n", nums)
+	for first:=0; first < n-2; first ++{
+		second := first + 1
+		third := n - 1
+		target := 0 - nums[first]
+		for second < third{
+			if second > first+1 && nums[second] == nums[second-1] {
+				second ++
+				continue
+			}
+
+			if nums[second] + nums[third] > target {
+				third --
+				continue
+			}
+
+
+			if nums[second] + nums[third] == target{
+				// fmt.Printf("%v %v %v\n", nums[first], nums[second] , nums[third])
+				ans = append(ans, []int{nums[first], nums[second], nums[third]})
+			}
+			second ++
+
+		}
+	}
+
 	return ans
 }
